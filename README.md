@@ -1,4 +1,4 @@
-# hook
+# tinytoolkit/hooks
 
 A simple PostgreSQL LISTEN/NOTIFY library for Go.
 
