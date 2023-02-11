@@ -5,7 +5,7 @@ A simple PostgreSQL hooks library for Go.
 ## Installation
 
 ```bash
-go get github.com/tinytoolkit/hook
+go get github.com/tinytoolkit/hooks
 ```
 
 ## Example
