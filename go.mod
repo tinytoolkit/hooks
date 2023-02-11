@@ -1,4 +1,4 @@
-module github.com/tinytoolkit/hook
+module github.com/tinytoolkit/hooks
 
 go 1.19
 
