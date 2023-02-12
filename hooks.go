@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -114,17 +115,19 @@ func (h *Hook) Listen(ctx context.Context) error {
 		return fmt.Errorf("failed to listen to hooks: %w", err)
 	}
 
+	log.Println("listening for notifications...")
 	for {
 		notification, err := pool.Conn().WaitForNotification(ctx)
 		if err != nil {
 			return err
 		}
 
-		go func() error {
+		go func() {
 			var payload Payload
 
 			if err := json.Unmarshal([]byte(notification.Payload), &payload); err != nil {
-				return err
+				log.Printf("failed to unmarshal payload: %v", err)
+				return
 			}
 
 			op := TableOp{Table: payload.Table, Op: payload.Op}
@@ -134,13 +137,13 @@ func (h *Hook) Listen(ctx context.Context) error {
 			h.mu.Unlock()
 
 			if !ok {
-				return fmt.Errorf("no handlers registered for table operation %v", op)
+				log.Printf("no handlers registered for table operation %v", op)
+				return
 			}
 
 			for _, h := range handlers {
 				h.Handle(ctx, payload)
 			}
-			return nil
 		}()
 	}
 }
@@ -179,6 +182,8 @@ func (h *Hook) createFunction(ctx context.Context) error {
 	if _, err := h.pool.Exec(ctx, query); err != nil {
 		return err
 	}
+
+	log.Println("created function notify_hooks")
 	return nil
 }
 
@@ -192,5 +197,7 @@ func (h *Hook) createTrigger(ctx context.Context, table string, op Op) error {
 	if _, err := h.pool.Exec(ctx, query); err != nil {
 		return err
 	}
+
+	log.Printf("created trigger %s_%s_hooks", table, op)
 	return nil
 }
