@@ -115,21 +115,19 @@ func (h *Hook) Listen(ctx context.Context) error {
 		return fmt.Errorf("failed to listen to hooks: %w", err)
 	}
 
-	log.Println("listening for notifications...")
+	log.Println("Listening for notifications...")
 	for {
 		notification, err := pool.Conn().WaitForNotification(ctx)
 		if err != nil {
 			return err
 		}
 
+		payload := Payload{}
+		if err := json.Unmarshal([]byte(notification.Payload), &payload); err != nil {
+			return err
+		}
+
 		go func() {
-			var payload Payload
-
-			if err := json.Unmarshal([]byte(notification.Payload), &payload); err != nil {
-				log.Printf("failed to unmarshal payload: %v", err)
-				return
-			}
-
 			op := TableOp{Table: payload.Table, Op: payload.Op}
 
 			h.mu.Lock()
@@ -183,7 +181,7 @@ func (h *Hook) createFunction(ctx context.Context) error {
 		return err
 	}
 
-	log.Println("created function notify_hooks")
+	log.Println("Created function notify_hooks")
 	return nil
 }
 
@@ -198,6 +196,6 @@ func (h *Hook) createTrigger(ctx context.Context, table string, op Op) error {
 		return err
 	}
 
-	log.Printf("created trigger %s_%s_hooks", table, op)
+	log.Printf("Created trigger %s_%s_hooks", table, op)
 	return nil
 }
