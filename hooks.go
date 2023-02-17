@@ -101,12 +101,12 @@ func (h *Hook) Listen(ctx context.Context) error {
 	}
 	defer pool.Release()
 
-	if err := h.createFunction(ctx); err != nil {
+	if err := h.CreateFunction(ctx); err != nil {
 		return fmt.Errorf("failed to create function: %w", err)
 	}
 
 	for tableOp := range h.handlers {
-		if err := h.createTrigger(ctx, tableOp.Table, tableOp.Op); err != nil {
+		if err := h.CreateTrigger(ctx, tableOp.Table, tableOp.Op); err != nil {
 			return fmt.Errorf("failed to create trigger: %w", err)
 		}
 	}
@@ -147,6 +147,11 @@ func (h *Hook) Listen(ctx context.Context) error {
 	}
 }
 
+// Close closes the connection pool.
+func (h *Hook) Close() {
+	h.pool.Close()
+}
+
 // Handler is an interface that handles a payload.
 type Handler interface {
 	Handle(ctx context.Context, payload Payload)
@@ -160,7 +165,7 @@ func (hf HandlerFunc) Handle(ctx context.Context, payload Payload) {
 	hf(ctx, payload)
 }
 
-func (h *Hook) createFunction(ctx context.Context) error {
+func (h *Hook) CreateFunction(ctx context.Context) error {
 	query := `
 		CREATE OR REPLACE FUNCTION notify_hooks() RETURNS TRIGGER AS $$
 		BEGIN
@@ -186,7 +191,7 @@ func (h *Hook) createFunction(ctx context.Context) error {
 	return nil
 }
 
-func (h *Hook) createTrigger(ctx context.Context, table string, op Op) error {
+func (h *Hook) CreateTrigger(ctx context.Context, table string, op Op) error {
 	query := `
 		CREATE OR REPLACE TRIGGER ` + table + `_` + string(op) + `_hooks
 		AFTER ` + string(op) + ` ON ` + table + `
