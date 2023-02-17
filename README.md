@@ -1,6 +1,6 @@
 # tinytoolkit/hooks
 
-A simple PostgreSQL hooks library for Go.
+A simple PostgreSQL LISTEN/NOTIFY library for Go.
 
 ## Installation
 
