@@ -122,12 +122,13 @@ func (h *Hook) Listen(ctx context.Context) error {
 			return err
 		}
 
-		payload := Payload{}
-		if err := json.Unmarshal([]byte(notification.Payload), &payload); err != nil {
-			return err
-		}
-
 		go func() {
+			payload := Payload{}
+			if err := json.Unmarshal([]byte(notification.Payload), &payload); err != nil {
+				log.Printf("failed to unmarshal payload: %v", err)
+				return
+			}
+
 			op := TableOp{Table: payload.Table, Op: payload.Op}
 
 			h.mu.Lock()
