@@ -8,7 +8,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 type (
 	// Hook is a struct that holds information about a connection pool and the handlers that should be triggered for each table operation.
 	Hook struct {
-		pool     *pgxpool.Pool
+		conn     *pgx.Conn
 		handlers map[TableOp][]Handler
 		mu       sync.Mutex
 	}
@@ -46,18 +46,18 @@ type (
 
 // New creates a new Hook with a connection to the database using the given DSN.
 func New(ctx context.Context, dsn string) (*Hook, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	conn, err := pgx.Connect(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewWithPool(pool), nil
+	return NewWithConn(conn), nil
 }
 
 // NewWithPool creates a new Hook with the given connection pool.
-func NewWithPool(pool *pgxpool.Pool) *Hook {
+func NewWithConn(conn *pgx.Conn) *Hook {
 	return &Hook{
-		pool:     pool,
+		conn:     conn,
 		handlers: make(map[TableOp][]Handler),
 	}
 }
@@ -95,12 +95,6 @@ func (h *Hook) Listen(ctx context.Context) error {
 		return errors.New("no handlers registered")
 	}
 
-	pool, err := h.pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer pool.Release()
-
 	if err := h.CreateFunction(ctx); err != nil {
 		return fmt.Errorf("failed to create function: %w", err)
 	}
@@ -111,13 +105,13 @@ func (h *Hook) Listen(ctx context.Context) error {
 		}
 	}
 
-	if _, err := pool.Exec(ctx, "LISTEN hooks"); err != nil {
+	if _, err := h.conn.Exec(ctx, "LISTEN hooks"); err != nil {
 		return fmt.Errorf("failed to listen to hooks: %w", err)
 	}
 
 	log.Println("Listening for notifications...")
 	for {
-		notification, err := pool.Conn().WaitForNotification(ctx)
+		notification, err := h.conn.WaitForNotification(ctx)
 		if err != nil {
 			return err
 		}
@@ -148,8 +142,8 @@ func (h *Hook) Listen(ctx context.Context) error {
 }
 
 // Close closes the connection pool.
-func (h *Hook) Close() {
-	h.pool.Close()
+func (h *Hook) Close(ctx context.Context) {
+	h.conn.Close(ctx)
 }
 
 // Handler is an interface that handles a payload.
@@ -183,7 +177,7 @@ func (h *Hook) CreateFunction(ctx context.Context) error {
 		END;
 		$$ LANGUAGE plpgsql;
 	`
-	if _, err := h.pool.Exec(ctx, query); err != nil {
+	if _, err := h.conn.Exec(ctx, query); err != nil {
 		return err
 	}
 
@@ -198,7 +192,7 @@ func (h *Hook) CreateTrigger(ctx context.Context, table string, op Op) error {
 		FOR EACH ROW
 		EXECUTE PROCEDURE notify_hooks();
 	`
-	if _, err := h.pool.Exec(ctx, query); err != nil {
+	if _, err := h.conn.Exec(ctx, query); err != nil {
 		return err
 	}
 
